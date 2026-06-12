@@ -161,6 +161,15 @@ class Settings(commands.Cog):
 
         self.get_server_data(ctx.guild)
 
+        config_key = key_map.get(db_target)
+        if not config_key:
+            embed = discord.Embed(
+                title="❌ 내부 오류",
+                description=f"잘못된 설정 타겟입니다. ({db_target})",
+                color=0x808080
+            )
+            return await ctx.send(embed=embed)
+
         if db_target == "cmd_ticket":
             ticket_cog = self.bot.get_cog("Ticket")
             if not ticket_cog:
@@ -182,16 +191,20 @@ class Settings(commands.Cog):
                 )
                 return await ctx.send(embed=embed)
 
-            self.server_configs[gid]["ticket_panel_channel_id"] = target_channel.id
+
+            self.server_configs[gid][config_key] = target_channel.id
             self.server_configs[gid]["ticket_panel_msg_id"] = panel_msg.id
 
             embed = discord.Embed(
                 title="✅ 패널 생성 성공",
-                description=f"티켓 패널 채널이 {target_channel.mention}로 설정되었으며 패널이 생성되었습니다.",
+                description=(
+                    f"티켓 패널 채널이 {target_channel.mention}로 설정되었습니다.\n"
+                    f"[패널 바로가기](https://discord.com/channels/{ctx.guild.id}/{target_channel.id}/{panel_msg.id})"
+                ),
                 color=0x808080
             )
         else:
-            self.server_configs[gid][key_map[db_target]] = target_channel.id
+            self.server_configs[gid][config_key] = target_channel.id
             embed = discord.Embed(
                 title="✅ 설정 완료",
                 description=f"[**{category.upper()} - {target.upper()}**] 채널이 {target_channel.mention}로 설정되었습니다.",
@@ -233,10 +246,17 @@ class Settings(commands.Cog):
 
         if category == "all":
             await self.delete_ticket_panel(ctx.guild)
-            self.server_configs.pop(gid, None)
+
+            if gid in self.server_configs:
+                for key in key_map.values():
+                    self.server_configs[gid][key] = None
+                self.server_configs[gid]["ticket_panel_msg_id"] = None
+            else:
+                self.get_server_data(ctx.guild)
+
             embed = discord.Embed(
                 title="✅ 모든 설정 초기화",
-                description=f"{ctx.guild.name}의 모든 설정이 초기화 되었습니다.",
+                description=f"{ctx.guild.name}의 모든 채널 설정이 초기화 되었습니다.",
                 color=0x808080
             )
             self.save_config()
@@ -246,7 +266,6 @@ class Settings(commands.Cog):
             return await ctx.send(embed=usage_embed)
 
         target = target.lower()
-
         db_target = self.get_db_target(category, target)
 
         if not db_target:
@@ -272,11 +291,21 @@ class Settings(commands.Cog):
         self.get_server_data(ctx.guild)
 
         if gid in self.server_configs:
+            config_key = key_map.get(db_target)
+            if not config_key:
+                embed=discord.Embed(
+                    title="❌ 내부 오류",
+                    description=f"잘못된 설정 타겟입니다. ({db_target})",
+                    color=0x808080
+                )
+                return await ctx.send(embed=embed)
+
             if db_target == "cmd_ticket":
                 await self.delete_ticket_panel(ctx.guild)
                 self.server_configs[gid]["ticket_panel_msg_id"] = None
-
-            self.server_configs[gid][key_map[db_target]] = None
+                self.server_configs[gid][config_key] = None
+            else:
+                self.server_configs[gid][config_key] = None
 
             embed = discord.Embed(
                 title="✅ 초기화 완료",
